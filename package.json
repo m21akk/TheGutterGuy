@@ -1,0 +1,8 @@
+{
+  "name": "the-gutterguy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Gutter Guy – quote requests, Stripe payments and job diary",
+  "engines": { "node": ">=20" }
+}

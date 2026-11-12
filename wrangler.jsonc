@@ -1,0 +1,12 @@
+{
+  // Cloudflare settings for The Gutter Guy website
+  "name": "thegutterguy",
+  "main": "server/worker.js",
+  "compatibility_date": "2025-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  // Keep the variables you set in the Cloudflare dashboard
+  "keep_vars": true
+}

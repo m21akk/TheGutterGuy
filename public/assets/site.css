@@ -39,15 +39,15 @@ p { margin: 0 0 1em; }
 
 /* Header */
 .top { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 76px; }
-.top .logo img { height: 56px; width: auto; }
+.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 96px; }
+.top .logo img { height: 78px; width: auto; }
 .top nav { display: flex; align-items: center; gap: 26px; }
 .top nav a { color: var(--ink); text-decoration: none; font-weight: 600; font-size: .95rem; }
 .top nav a:hover { color: var(--roof); }
 .top nav a.btn, .top nav a.btn:hover { color: #fff; }
 .top .phone { font-weight: 800; color: var(--roof); white-space: nowrap; }
 .top .btn { padding: 12px 18px; font-size: .92rem; }
-@media (max-width: 820px) { .top nav .hide-sm { display: none; } .top .logo img { height: 46px; } }
+@media (max-width: 820px) { .top nav .hide-sm { display: none; } .top .wrap { height: 80px; } .top .logo img { height: 62px; } }
 @media (max-width: 480px) { .top .phone { display: none; } }
 
 /* Hero */
@@ -150,4 +150,70 @@ footer strong { color: #fff; }
   .call-bar a { padding: 16px; text-align: center; font-weight: 700; text-decoration: none; color: #fff; background: var(--roof); }
   .call-bar a:first-child { background: var(--ink); }
   body { padding-bottom: 56px; }
+}
+
+.btn.small { padding: 10px 16px; font-size: .9rem; }
+.muted-note { color: var(--muted); margin: 0; }
+
+/* Reviews */
+.reviews { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); }
+.reviews-head .stars { color: #f2b01e; letter-spacing: 3px; font-size: 1.25rem; }
+.reviews-head h3 { font-size: 1.4rem; margin: 6px 0 16px; }
+.review-list { display: grid; gap: 14px; margin-bottom: 18px; }
+.review { border-left: 3px solid var(--water); padding: 2px 0 2px 14px; }
+.review p { margin: 0 0 6px; font-size: .97rem; }
+.review .by { font-size: .85rem; color: var(--muted); }
+.review .by a { color: var(--muted); }
+.review-links { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.review-links .g-note { font-size: .78rem; color: var(--muted); width: 100%; }
+
+/* Booking */
+.book-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+.book-card { padding: 8px 32px; }
+.step { padding: 26px 0; border-bottom: 1px solid var(--line); }
+.step:last-child { border-bottom: 0; }
+.step h3 { display: flex; align-items: center; gap: 12px; font-size: 1.2rem; margin-bottom: 16px; }
+.step .n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--roof); color: #fff; font-size: .95rem; flex: none; }
+.chip input[type=radio] + span { min-width: 56px; text-align: center; }
+.sub { margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sub-label { font-weight: 600; font-size: .92rem; }
+.service-list { display: grid; gap: 10px; }
+.svc { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+.svc:hover { border-color: #c9ced4; }
+.svc input { width: 20px; height: 20px; accent-color: var(--roof); flex: none; }
+.svc .nm { font-weight: 600; flex: 1; }
+.svc .pr { font-weight: 700; white-space: nowrap; }
+.svc .pr.ask { font-weight: 500; color: var(--muted); font-size: .88rem; }
+.svc.on { border-color: var(--roof); background: var(--roof-soft); }
+
+.bcal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.bcal-head strong { font-family: var(--head); font-size: 1.1rem; }
+.bcal-head button { width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--line); background: #fff; font-size: 1.2rem; cursor: pointer; }
+.bcal-head button:disabled { opacity: .3; cursor: default; }
+.bcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.bcal-grid .dow { text-align: center; font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; padding-bottom: 4px; }
+.bcal-grid button { height: 50px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; font: 600 .95rem var(--body); cursor: pointer; color: var(--ink); }
+.bcal-grid button:disabled { background: transparent; border-color: transparent; color: #c3c8cd; cursor: default; font-weight: 400; text-decoration: line-through; }
+.bcal-grid button.free:hover { border-color: var(--water); }
+.bcal-grid button.sel { background: var(--roof); border-color: var(--roof); color: #fff; }
+.bcal-grid .blank { height: 50px; }
+.slot-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.slot-row button { padding: 14px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; font: 600 .95rem var(--body); cursor: pointer; text-align: left; color: var(--ink); }
+.slot-row button small { display: block; font-weight: 400; color: var(--muted); margin-top: 2px; }
+.slot-row button.sel { border-color: var(--roof); background: var(--roof-soft); color: var(--roof); }
+.slot-row button:disabled { opacity: .45; cursor: default; }
+
+.summary { position: sticky; top: 112px; padding: 26px; }
+.summary h3 { font-size: 1.2rem; margin-bottom: 14px; }
+.summary dl { margin: 0 0 14px; display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; font-size: .93rem; }
+.summary dt { color: var(--muted); }
+.summary dd { margin: 0; text-align: right; font-weight: 600; }
+.summary .total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding: 14px 0; margin-bottom: 8px; }
+.summary .total strong { font: 800 1.8rem var(--head); color: var(--roof); }
+.summary .fine { font-size: .82rem; color: var(--muted); margin: 12px 0 0; text-align: center; }
+.contact-mini { font-size: .88rem; text-align: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+@media (max-width: 900px) {
+  .book-grid { grid-template-columns: 1fr; }
+  .summary { position: static; }
+  .book-card { padding: 4px 20px; }
 }

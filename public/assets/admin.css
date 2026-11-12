@@ -2,7 +2,7 @@ body.admin { background: #f3f4f6; padding-bottom: 0; }
 .login { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
 .login .card { width: min(380px, 100%); }
 .a-top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line); }
-.a-top img { height: 40px; width: auto; }
+.a-top img { height: 58px; width: auto; }
 .tabs { display: flex; gap: 4px; background: #f1f2f4; padding: 4px; border-radius: 999px; margin-left: auto; }
 .tabs button { border: 0; background: none; padding: 8px 16px; border-radius: 999px; font: 600 .93rem var(--body); cursor: pointer; color: var(--muted); }
 .tabs button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
@@ -79,5 +79,30 @@ body.admin { background: #f3f4f6; padding-bottom: 0; }
 .paid-box { background: #e9f8ee; border-radius: 10px; padding: 14px; }
 .paid-box .amt { font: 800 1.8rem var(--head); color: #1f7a3a; }
 .check { display: flex; align-items: center; gap: 8px; font-size: .93rem; margin: 4px 0 14px; }
+.panel { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px; margin-bottom: 16px; }
+.panel h2 { font-size: 1.3rem; margin-bottom: 6px; }
+.hint { color: var(--muted); font-size: .93rem; margin-bottom: 16px; }
+.to-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.to-form .field { margin: 0; min-width: 150px; }
+.to-form .grow { flex: 1; min-width: 200px; }
+.to-list { margin-top: 18px; display: grid; gap: 8px; }
+.to-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.to-item .when { font-weight: 700; flex: 1; }
+.to-item .note { color: var(--muted); font-size: .9rem; }
+.to-item.past { opacity: .5; }
+.price-table-wrap { overflow-x: auto; }
+.price-table { border-collapse: collapse; width: 100%; min-width: 640px; }
+.price-table th, .price-table td { padding: 6px; text-align: left; font-size: .9rem; }
+.price-table th { color: var(--muted); font-weight: 600; }
+.price-table td:first-child { font-weight: 600; min-width: 170px; }
+.price-table input { padding: 9px 8px 9px 22px; font-size: .95rem; }
+.price-table .cell { position: relative; }
+.price-table .cell span { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .9rem; }
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 700px) { .row3 { grid-template-columns: 1fr; } .tabs button { padding: 8px 10px; font-size: .85rem; } }
+.cal .day.off { background: repeating-linear-gradient(135deg, #fff, #fff 6px, #f3eded 6px, #f3eded 12px); }
+.cal .off-tag { font-size: .7rem; font-weight: 700; color: var(--roof); }
+.s-pending { background: #fff4dc; color: #8a5a00; }
+.dot.s-pending { background: #e0a100; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 10px; z-index: 60; font-weight: 600; box-shadow: var(--shadow); }
 .admin section.view { padding: 0; }

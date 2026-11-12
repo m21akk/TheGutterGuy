@@ -53,9 +53,9 @@ ${r('Notes', escapeHtml(job.notes).replace(/\n/g, '<br>'))}
 export function requestReceived(job) {
   return send({
     to: job.email,
-    subject: 'We’ve got your quote request – The Gutter Guy',
+    subject: 'We’ve got your booking request – The Gutter Guy',
     html: layout(`Thanks ${job.name.split(' ')[0]}, we’ve got your request`, `
-<p style="font-size:15px;line-height:1.5">We’ll take a look and email you a price, usually within 24 hours. You can accept it and pay securely online in one click, then we’ll book you in.</p>
+<p style="font-size:15px;line-height:1.5">Roy will take a look and email you a price. You can accept it and pay securely online in one click, and you’re booked in.</p>
 <p style="font-size:15px;line-height:1.5">Here’s what you sent us:</p>${rows(job)}
 <p style="font-size:14px;color:#5b6a75">Anything to add? Just reply to this email or call 07460 941982.</p>`),
   });
@@ -67,8 +67,8 @@ export function newRequestAlert(job) {
   return send({
     to: owner,
     replyTo: job.email,
-    subject: `New quote request: ${job.name}, ${job.postcode}`,
-    html: layout('New quote request', `${rows(job)}
+    subject: `New booking request (needs a price): ${job.name}, ${job.postcode}`,
+    html: layout('New booking request – needs a price', `${rows(job)}
 <p><a href="${siteUrl()}/admin#job=${job.id}" style="display:inline-block;background:${BRAND};color:#fff;padding:12px 18px;border-radius:6px;font-weight:bold;text-decoration:none">Open and send a price</a></p>`),
   });
 }
@@ -89,7 +89,7 @@ ${job.scheduled_date
   if (allEnv().OWNER_EMAIL) {
     tasks.push(send({
       to: allEnv().OWNER_EMAIL,
-      subject: `Paid: ${job.name} – ${money(job.price_pence)}`,
+      subject: `${job.booking_type === 'instant' ? 'New booking' : 'Paid'}: ${job.name} – ${money(job.price_pence)}${job.scheduled_date ? ' – ' + niceDate(job.scheduled_date) : ''}`,
       html: layout(`${job.name} has paid ${money(job.price_pence)}`, `${rows(job)}
 <p><a href="${siteUrl()}/admin#job=${job.id}" style="color:${BRAND};font-weight:bold">Open job</a></p>`),
     }));

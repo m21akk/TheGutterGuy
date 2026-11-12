@@ -28,7 +28,7 @@ export async function listJobs() {
 
 export async function scheduledJobs() {
   const res = await fetch(
-    `${base()}/rest/v1/jobs?select=*&scheduled_date=not.is.null&status=neq.cancelled&order=scheduled_date.asc`,
+    `${base()}/rest/v1/jobs?select=*&scheduled_date=not.is.null&status=not.in.(cancelled,pending)&order=scheduled_date.asc`,
     { headers: headers() },
   );
   return check(res);
@@ -85,4 +85,57 @@ export async function signedPhotoUrls(paths = []) {
   });
   const rows = await check(res);
   return (rows || []).filter((r) => r.signedURL).map((r) => `${base()}/storage/v1${r.signedURL}`);
+}
+
+// ---------- Booking settings, time off and availability ----------
+
+export async function getSettingsRow() {
+  const res = await fetch(`${base()}/rest/v1/settings?id=eq.1&select=data`, { headers: headers() });
+  return (await check(res))?.[0]?.data || null;
+}
+
+export async function saveSettingsRow(data) {
+  const res = await fetch(`${base()}/rest/v1/settings?on_conflict=id`, {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' }),
+    body: JSON.stringify({ id: 1, data, updated_at: new Date().toISOString() }),
+  });
+  return (await check(res))?.[0]?.data;
+}
+
+export async function listTimeOff(fromDate) {
+  const filter = fromDate ? `&end_date=gte.${fromDate}` : '';
+  const res = await fetch(`${base()}/rest/v1/time_off?select=*&order=start_date.asc${filter}`, { headers: headers() });
+  return (await check(res)) || [];
+}
+
+export async function addTimeOff(row) {
+  const res = await fetch(`${base()}/rest/v1/time_off`, {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json', Prefer: 'return=representation' }),
+    body: JSON.stringify(row),
+  });
+  return (await check(res))[0];
+}
+
+export async function deleteTimeOff(id) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(id))) return;
+  const res = await fetch(`${base()}/rest/v1/time_off?id=eq.${id}`, { method: 'DELETE', headers: headers() });
+  await check(res);
+}
+
+export async function jobsBetween(from, to) {
+  const res = await fetch(
+    `${base()}/rest/v1/jobs?select=id,status,scheduled_date,scheduled_slot,hold_expires_at` +
+      `&scheduled_date=gte.${from}&scheduled_date=lte.${to}&status=in.(pending,quoted,paid,completed)`,
+    { headers: headers() },
+  );
+  return (await check(res)) || [];
+}
+
+export async function findJobBySession(sessionId) {
+  const res = await fetch(`${base()}/rest/v1/jobs?stripe_session_id=eq.${encodeURIComponent(sessionId)}&select=*`, {
+    headers: headers(),
+  });
+  return (await check(res))?.[0] || null;
 }

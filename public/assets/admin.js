@@ -5,11 +5,14 @@
   const money = (p) => '£' + (p / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const nice = (s, opts = { weekday: 'short', day: 'numeric', month: 'short' }) => (s ? new Date(s.length === 10 ? s + 'T12:00:00' : s).toLocaleDateString('en-GB', opts) : '');
-  const STATUS = { new: 'New', quoted: 'Quoted', paid: 'Paid', completed: 'Done', cancelled: 'Cancelled' };
+  const STATUS = { new: 'Needs price', quoted: 'Quoted', pending: 'Paying now', paid: 'Booked & paid', completed: 'Done', cancelled: 'Cancelled' };
   const SLOT = { am: 'Morning', pm: 'Afternoon', any: 'Any time' };
 
   let jobs = [];
-  let filter = 'new';
+  let timeOff = [];
+  const isLiveHold = (j) => j.status === 'pending' && j.hold_expires_at && new Date(j.hold_expires_at) > new Date();
+  const visible = (j) => j.status !== 'pending' || isLiveHold(j);
+  let filter = 'paid';
   let month = new Date(); month.setDate(1);
   let selectedDay = iso(new Date());
 
@@ -54,28 +57,35 @@
   }
 
   async function load() {
-    jobs = (await api('/api/admin/jobs')).jobs;
-    renderList(); renderDiary();
+    const [j, t] = await Promise.all([api('/api/admin/jobs'), api('/api/admin/time-off')]);
+    jobs = j.jobs.filter(visible);
+    timeOff = t.timeOff || [];
+    renderList(); renderDiary(); renderTimeOff();
   }
 
   // ---------- Tabs ----------
   document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => {
     document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
-    $('#view-jobs').hidden = b.dataset.view !== 'jobs';
-    $('#view-diary').hidden = b.dataset.view !== 'diary';
+    ['jobs', 'diary', 'timeoff', 'prices'].forEach((v) => ($('#view-' + v).hidden = b.dataset.view !== v));
+    if (b.dataset.view === 'prices') loadPrices();
   }));
 
   // ---------- Jobs list ----------
-  const FILTERS = [['new', 'New'], ['quoted', 'Awaiting payment'], ['paid', 'Paid'], ['completed', 'Done'], ['all', 'All']];
+  const FILTERS = [['paid', 'Booked'], ['new', 'Needs a price'], ['quoted', 'Awaiting payment'], ['completed', 'Done'], ['all', 'All']];
+  function matches(j, f) {
+    if (f === 'all') return true;
+    if (f === 'quoted') return j.status === 'quoted' || j.status === 'pending';
+    return j.status === f;
+  }
   function renderList() {
     $('#filters').innerHTML = FILTERS.map(([k, label]) => {
-      const n = k === 'all' ? jobs.length : jobs.filter((j) => j.status === k).length;
+      const n = k === 'all' ? jobs.length : jobs.filter((j) => matches(j, k)).length;
       return `<button data-f="${k}" class="${filter === k ? 'on' : ''}">${label}<b>${n}</b></button>`;
     }).join('');
     $('#filters').querySelectorAll('button').forEach((b) => (b.onclick = () => { filter = b.dataset.f; renderList(); }));
 
     const q = $('#search').value.trim().toLowerCase();
-    const list = jobs.filter((j) => (filter === 'all' || j.status === filter) &&
+    const list = jobs.filter((j) => matches(j, filter) &&
       (!q || [j.name, j.postcode, j.phone, j.email, j.address, j.town].join(' ').toLowerCase().includes(q)));
     $('#job-list').innerHTML = list.length ? list.map(card).join('') : `<div class="empty">Nothing here right now.</div>`;
     $('#job-list').querySelectorAll('.job').forEach((el) => (el.onclick = () => openJob(el.dataset.id)));
@@ -137,6 +147,8 @@
         <details><summary style="cursor:pointer;font-weight:600;margin-bottom:12px">Change the price / re-send</summary>${quoteForm}</details>`;
     } else if (j.status === 'paid' || j.status === 'completed') {
       money_ = `<div class="paid-box"><div class="amt">${money(j.price_pence)} paid</div><div>Paid ${nice(j.paid_at, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div>`;
+    } else if (j.status === 'pending') {
+      money_ = `<div class="quoted-box"><div class="amt">${money(j.price_pence)}</div><div>Booked online – the customer is paying now. If they don’t finish within 30 minutes the slot is released.</div></div>`;
     } else if (j.status === 'new') {
       money_ = quoteForm;
     } else {
@@ -220,13 +232,15 @@
 
     const start = new Date(month); start.setDate(1 - ((month.getDay() + 6) % 7)); // Monday first
     const todayIso = iso(new Date());
+    const offOn = (key) => timeOff.find((t) => t.start_date <= key && key <= t.end_date);
     let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="dow">${d}</div>`).join('');
     for (let i = 0; i < 42; i++) {
       const d = new Date(start); d.setDate(start.getDate() + i);
       const key = iso(d);
       const list = byDay[key] || [];
-      html += `<button class="day ${d.getMonth() !== month.getMonth() ? 'out' : ''} ${key === todayIso ? 'today' : ''} ${key === selectedDay ? 'sel' : ''}" data-day="${key}">
-        <span class="num">${d.getDate()}</span>
+      const off = offOn(key);
+      html += `<button class="day ${d.getMonth() !== month.getMonth() ? 'out' : ''} ${key === todayIso ? 'today' : ''} ${key === selectedDay ? 'sel' : ''} ${off ? 'off' : ''}" data-day="${key}">
+        <span class="num">${d.getDate()}</span>${off ? `<span class="off-tag">${off.slot === 'am' ? 'AM off' : off.slot === 'pm' ? 'PM off' : 'Off'}</span>` : ''}
         ${list.map((j) => `<span class="pill s-${j.status}">${j.scheduled_slot === 'am' ? 'AM ' : j.scheduled_slot === 'pm' ? 'PM ' : ''}${esc(j.name.split(' ')[0])} ${esc(j.postcode.split(' ')[0])}</span>`).join('')}
         <span class="dots">${list.map((j) => `<span class="dot s-${j.status}"></span>`).join('')}</span>
       </button>`;
@@ -237,7 +251,8 @@
     $('#cal').querySelectorAll('.day').forEach((b) => (b.onclick = () => { selectedDay = b.dataset.day; renderDiary(); }));
 
     const dayJobs = byDay[selectedDay] || [];
-    $('#day-list').innerHTML = `<h3>${nice(selectedDay, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>` +
+    const selOff = offOn(selectedDay);
+    $('#day-list').innerHTML = `<h3>${nice(selectedDay, { weekday: 'long', day: 'numeric', month: 'long' })}${selOff ? ` · <span style="color:var(--roof)">Time off${selOff.note ? ' – ' + esc(selOff.note) : ''}</span>` : ''}</h3>` +
       (dayJobs.length ? `<div class="job-list">${dayJobs.map(card).join('')}</div>` : '<p style="color:var(--muted)">No jobs booked.</p>');
 
     const unscheduled = jobs.filter((j) => j.status === 'paid' && !j.scheduled_date);
@@ -264,6 +279,70 @@
     } catch (e) { toast(e.message); }
   };
 
+  // ---------- Time off ----------
+  function renderTimeOff() {
+    const today = iso(new Date());
+    const PART = { all: 'All day', am: 'Morning', pm: 'Afternoon' };
+    const fmt = (d) => nice(d, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    $('#to-list').innerHTML = timeOff.length ? timeOff.map((t) => `<div class="to-item ${t.end_date < today ? 'past' : ''}">
+        <div><div class="when">${fmt(t.start_date)}${t.end_date !== t.start_date ? ' → ' + fmt(t.end_date) : ''}</div>
+        <div class="note">${PART[t.slot] || 'All day'}${t.note ? ' · ' + esc(t.note) : ''}</div></div>
+        <span style="flex:1"></span>
+        <button class="btn ghost small" data-del="${t.id}">Remove</button></div>`).join('')
+      : '<p class="hint" style="margin:0">No time off booked.</p>';
+    $('#to-list').querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
+      if (!confirm('Remove this time off? Customers will be able to book these dates again.')) return;
+      try { await api('/api/admin/time-off?id=' + b.dataset.del, { method: 'DELETE' }); toast('Removed – dates open for booking'); await load(); }
+      catch (e) { toast(e.message); }
+    }));
+  }
+  $('#to-start').min = iso(new Date());
+  $('#to-start').onchange = () => { $('#to-end').min = $('#to-start').value; if (!$('#to-end').value || $('#to-end').value < $('#to-start').value) $('#to-end').value = $('#to-start').value; };
+  $('#to-form').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/admin/time-off', { method: 'POST', body: { start_date: $('#to-start').value, end_date: $('#to-end').value || $('#to-start').value, slot: $('#to-slot').value, note: $('#to-note').value } });
+      const clash = jobs.filter((j) => j.scheduled_date && j.scheduled_date >= $('#to-start').value && j.scheduled_date <= ($('#to-end').value || $('#to-start').value) && ['paid', 'quoted', 'pending'].includes(j.status));
+      $('#to-form').reset();
+      toast(clash.length ? `Blocked out. Heads up: ${clash.length} job(s) already booked in those dates – check the Diary.` : 'Blocked out – customers can’t book those dates');
+      await load();
+    } catch (ex) { toast(ex.message); }
+  };
+
+  // ---------- Prices & hours ----------
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  async function loadPrices() {
+    try {
+      const { settings: st, services, propertyTypes } = await api('/api/admin/settings');
+      const pounds = (p) => (p ? (p / 100).toFixed(p % 100 ? 2 : 0) : '');
+      $('#price-table').innerHTML = `<tr><th></th>${propertyTypes.map((p) => `<th>${esc(p.name)}</th>`).join('')}</tr>` +
+        services.map((s) => `<tr><td>${esc(s.name)}</td>${propertyTypes.map((p) =>
+          `<td><div class="cell"><span>£</span><input type="number" min="0" step="0.01" inputmode="decimal" data-s="${s.id}" data-p="${p.id}" value="${pounds(st.prices?.[s.id]?.[p.id])}" placeholder="–"></div></td>`).join('')}</tr>`).join('');
+      $('#pr-surcharge').value = pounds(st.surcharge_3plus);
+      $('#pr-days').innerHTML = [1, 2, 3, 4, 5, 6, 0].map((d) =>
+        `<label class="chip"><input type="checkbox" value="${d}" ${st.working_days.includes(d) ? 'checked' : ''}><span>${DAY_NAMES[d]}</span></label>`).join('');
+      $('#pr-am').checked = !!st.slots.am; $('#pr-pm').checked = !!st.slots.pm;
+      $('#pr-cap').value = st.capacity_per_slot;
+      $('#pr-notice').value = String(st.min_notice_days);
+      $('#pr-ahead').value = String(st.max_days_ahead);
+      if (!$('#pr-ahead').value) $('#pr-ahead').value = '60';
+    } catch (e) { toast(e.message); }
+  }
+  $('#pr-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const prices = {};
+    document.querySelectorAll('#price-table input').forEach((i) => { if (i.value) (prices[i.dataset.s] ||= {})[i.dataset.p] = i.value; });
+    try {
+      await api('/api/admin/settings', { method: 'PUT', body: {
+        prices, surcharge_3plus: $('#pr-surcharge').value,
+        working_days: [...document.querySelectorAll('#pr-days input:checked')].map((i) => Number(i.value)),
+        slots: { am: $('#pr-am').checked, pm: $('#pr-pm').checked },
+        capacity_per_slot: $('#pr-cap').value, min_notice_days: $('#pr-notice').value, max_days_ahead: $('#pr-ahead').value,
+      } });
+      toast('Saved – the booking page is updated');
+    } catch (ex) { toast(ex.message); }
+  };
+
   // ---------- Demo data (only used in the preview) ----------
   function demoApi(path, opts) {
     const db = (window.__demo ||= (() => {
@@ -285,6 +364,15 @@
     if (path.startsWith('/api/admin/jobs?id=')) return Promise.resolve({ job: find(path.split('=')[1]) });
     if (path === '/api/admin/jobs' && opts.method === 'PATCH') { Object.assign(find(b.id), b); delete find(b.id).notify; return Promise.resolve({}); }
     if (path === '/api/admin/send-quote') { Object.assign(find(b.id), { status: 'quoted', price_pence: Math.round(b.price * 100), quoted_at: new Date().toISOString(), scheduled_date: b.scheduled_date || null, quote_message: b.message, invoice_url: 'https://invoice.stripe.com/' }); return Promise.resolve({}); }
+    window.__demoOff ||= [{ id: 'to1', start_date: (() => { const d = new Date(Date.now() + 9 * 864e5); return iso(d); })(), end_date: (() => { const d = new Date(Date.now() + 11 * 864e5); return iso(d); })(), slot: 'all', note: 'Holiday' }];
+    window.__demoSettings ||= { prices: { gutters: { terraced: 5000, semi: 6000, detached: 8000, bungalow: 5500, flat: 5000 }, fascia: { terraced: 4000, semi: 4500, detached: 6000, bungalow: 4000, flat: 4000 }, conservatory: { semi: 7000, detached: 8000, bungalow: 7000 } }, surcharge_3plus: 2000, working_days: [1, 2, 3, 4, 5, 6], slots: { am: true, pm: true }, capacity_per_slot: 2, min_notice_days: 1, max_days_ahead: 60 };
+    if (path.startsWith('/api/admin/time-off') && !opts.method) return Promise.resolve({ timeOff: window.__demoOff });
+    if (path.startsWith('/api/admin/time-off') && opts.method === 'POST') { window.__demoOff.push({ id: 'to' + Date.now(), ...b }); window.__demoOff.sort((x, y) => x.start_date.localeCompare(y.start_date)); return Promise.resolve({}); }
+    if (path.startsWith('/api/admin/time-off') && opts.method === 'DELETE') { const id = path.split('=')[1]; window.__demoOff = window.__demoOff.filter((t) => t.id !== id); return Promise.resolve({}); }
+    if (path === '/api/admin/settings' && !opts.method) return Promise.resolve({ settings: window.__demoSettings,
+      services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared' }, { id: 'fascia', name: 'Fascia & gutter cleaning' }, { id: 'conservatory', name: 'Conservatory roof cleaning' }, { id: 'cladding', name: 'Cladding cleaning' }, { id: 'repairs', name: 'Gutter repairs' }],
+      propertyTypes: [{ id: 'terraced', name: 'Terraced' }, { id: 'semi', name: 'Semi-detached' }, { id: 'detached', name: 'Detached' }, { id: 'bungalow', name: 'Bungalow' }, { id: 'flat', name: 'Flat / apartment' }] });
+    if (path === '/api/admin/settings') return Promise.resolve({});
     if (path === '/api/admin/calendar-link') return Promise.resolve({ https: 'https://www.the-gutterguy.co.uk/api/calendar?token=…', webcal: '#' });
     return Promise.resolve({});
   }

@@ -6,15 +6,24 @@ import * as session from './routes/admin/session.js';
 import * as jobs from './routes/admin/jobs.js';
 import * as sendQuote from './routes/admin/send-quote.js';
 import * as calendarLink from './routes/admin/calendar-link.js';
+import * as booking from './routes/booking.js';
+import * as reviews from './routes/reviews.js';
+import * as settings from './routes/admin/settings.js';
+import * as timeOff from './routes/admin/time-off.js';
 
 const ROUTES = {
+  '/api/booking-options': { GET: booking.GET },
+  '/api/book': { POST: booking.POST },
   '/api/request': request,
+  '/api/reviews': reviews,
   '/api/stripe-webhook': webhook,
   '/api/calendar': calendar,
   '/api/admin/session': session,
   '/api/admin/jobs': jobs,
   '/api/admin/send-quote': sendQuote,
   '/api/admin/calendar-link': calendarLink,
+  '/api/admin/settings': settings,
+  '/api/admin/time-off': timeOff,
 };
 
 export default {

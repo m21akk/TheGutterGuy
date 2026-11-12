@@ -1,16 +1,18 @@
 # The Gutter Guy – the-gutterguy.co.uk
 
-Website for The Gutter Guy (Roy, Walsall & the Midlands). It handles online quote requests, Stripe quotes, payments and reminders, and a job diary. Hosted on **Cloudflare Pages**.
+Website for The Gutter Guy (Roy, Walsall & the Midlands). It handles online quote requests, Stripe quotes, payments and reminders, and a job diary. Hosted on **Cloudflare Workers** (static assets + API).
 
 **Start with `SETUP.md`.**
 
 ```
-public/                  The website (Cloudflare "build output directory")
-  index.html             Public site + quote request form
+wrangler.jsonc           Cloudflare settings (Worker name, website folder)
+public/                  The website files
+  index.html             Public site + online booking
+  booked.html            "You’re booked in" page after payment
   admin.html             Roy's admin: jobs, send quotes, diary
   assets/                Styles, scripts, logo
   _headers               Security headers
-functions/api/...        Cloudflare routes – each one passes the request to server/routes
+server/worker.js         Sends /api/... to the code, everything else to the website
 server/routes/...        The actual API code (requests, admin, Stripe webhook, calendar)
 server/*.js              Database, Stripe, email, login and crypto helpers
 schema.sql               Database tables (run once in Supabase)

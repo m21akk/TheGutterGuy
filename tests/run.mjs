@@ -8,24 +8,36 @@ Object.assign(process.env, {
   SESSION_SECRET: 's'.repeat(40), CALENDAR_TOKEN: 'caltok', SITE_URL: 'https://www.the-gutterguy.co.uk',
 });
 
-const rows = []; const emails = []; const stripeCalls = []; const uploads = [];
+const rows = []; const settingsRows = []; const timeOffRows = []; const emails = []; const stripeCalls = []; const uploads = [];
 globalThis.fetch = async (url, opts = {}) => {
   url = String(url); const method = opts.method || 'GET';
-  const ok = (data, status = 200) => new Response(JSON.stringify(data), { status });
-  if (url.startsWith('https://db.test/rest/v1/jobs')) {
+  const ok = (data, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status });
+  const tableMatch = /^https:\/\/db\.test\/rest\/v1\/(jobs|settings|time_off)/.exec(url);
+  if (tableMatch) {
+    const table = { jobs: rows, settings: settingsRows, time_off: timeOffRows }[tableMatch[1]];
     const q = new URL(url).searchParams;
     const filt = (r) => {
       for (const [k, v] of q) {
-        if (['select', 'order', 'limit'].includes(k)) continue;
-        if (v.startsWith('eq.') && String(r[k]) !== v.slice(3)) return false;
-        if (v === 'not.is.null' && r[k] == null) return false;
-        if (v.startsWith('neq.') && r[k] === v.slice(4)) return false;
+        if (['select', 'order', 'limit', 'on_conflict'].includes(k)) continue;
+        const val = r[k] == null ? null : String(r[k]);
+        if (v.startsWith('eq.') && val !== v.slice(3)) return false;
+        if (v.startsWith('neq.') && val === v.slice(4)) return false;
+        if (v === 'not.is.null' && val == null) return false;
+        if (v.startsWith('gte.') && !(val >= v.slice(4))) return false;
+        if (v.startsWith('lte.') && !(val <= v.slice(4))) return false;
+        if (v.startsWith('in.(') && !v.slice(4, -1).split(',').includes(val)) return false;
+        if (v.startsWith('not.in.(') && v.slice(8, -1).split(',').includes(val)) return false;
       }
       return true;
     };
-    if (method === 'POST') { const r = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...JSON.parse(opts.body) }; rows.push(r); return ok([r], 201); }
-    if (method === 'PATCH') { const hit = rows.filter(filt); hit.forEach((r) => Object.assign(r, JSON.parse(opts.body))); return ok(hit); }
-    return ok(rows.filter(filt));
+    if (method === 'POST') {
+      const body = JSON.parse(opts.body);
+      if (tableMatch[1] === 'settings') { settingsRows.length = 0; settingsRows.push(body); return ok([body], 201); }
+      const r = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...body }; table.push(r); return ok([r], 201);
+    }
+    if (method === 'PATCH') { const hit = table.filter(filt); hit.forEach((r) => Object.assign(r, JSON.parse(opts.body))); return ok(hit); }
+    if (method === 'DELETE') { const keep = table.filter((r) => !filt(r)); table.length = 0; table.push(...keep); return ok(null, 204); }
+    return ok(table.filter(filt));
   }
   if (url.startsWith('https://db.test/storage/v1/object/sign')) return ok(JSON.parse(opts.body).paths.map((p) => ({ path: p, signedURL: `/object/sign/job-photos/${p}?token=t` })));
   if (url.startsWith('https://db.test/storage/v1/object/')) { uploads.push(url); return ok({ Key: url }); }
@@ -35,10 +47,18 @@ globalThis.fetch = async (url, opts = {}) => {
     stripeCalls.push({ method, path, body });
     assert.equal(opts.headers.Authorization, 'Bearer sk_test_x');
     if (path === '/customers') return ok({ id: 'cus_1' });
+    if (path === '/checkout/sessions') return ok({ id: 'cs_' + stripeCalls.length, url: 'https://checkout.stripe.com/c/pay/cs_' + stripeCalls.length });
     if (path === '/invoices' && method === 'POST') return ok({ id: 'in_' + stripeCalls.length, status: 'draft' });
     if (path.endsWith('/finalize')) return ok({ id: path.split('/')[2], hosted_invoice_url: 'https://invoice.stripe.com/i/' + path.split('/')[2], status: 'open' });
     if (/^\/invoices\/in_\d+$/.test(path) && method === 'GET') return ok({ id: path.split('/')[2], status: 'open' });
     return ok({ id: 'x', status: 'open' });
+  }
+  if (url.startsWith('https://places.googleapis.com/v1/places/')) {
+    assert.equal(opts.headers['X-Goog-Api-Key'], 'gkey');
+    return ok({ googleMapsUri: 'https://maps.google.com/?cid=1', reviews: [
+      { rating: 5, originalText: { text: 'Roy was brilliant, gutters spotless.' }, authorAttribution: { displayName: 'Jo B', uri: 'https://g/jo' }, relativePublishTimeDescription: 'a week ago' },
+      { rating: 2, originalText: { text: 'Late.' }, authorAttribution: { displayName: 'X' } },
+      { rating: 5, text: { text: 'Great job' }, authorAttribution: { displayName: 'Sam' } } ] });
   }
   if (url === 'https://api.resend.com/emails') { emails.push(JSON.parse(opts.body)); return ok({ id: 'em' }); }
   throw new Error('Unexpected fetch ' + url);
@@ -53,6 +73,10 @@ const J = await import('../server/routes/admin/jobs.js');
 const Q = await import('../server/routes/admin/send-quote.js');
 const W = await import('../server/routes/stripe-webhook.js');
 const C = await import('../server/routes/calendar.js');
+const B = await import('../server/routes/booking.js');
+const ST = await import('../server/routes/admin/settings.js');
+const TO = await import('../server/routes/admin/time-off.js');
+const AV = await import('../server/availability.js');
 const L = await import('../server/routes/admin/calendar-link.js');
 
 // 1. Validation
@@ -144,20 +168,138 @@ res = await L.GET(req('/api/admin/calendar-link', auth)); assert.match((await re
 res = await J.PATCH(req('/api/admin/jobs', { method: 'PATCH', ...auth, body: { id: job.id, status: 'completed' } }));
 assert.equal(job.status, 'completed');
 
-console.log('All tests passed ✓');
+console.log('Core flow ✓');
 
-// 12. Cloudflare entry points: settings arrive via context.env, not process.env
+// 13. Availability maths (pure)
+{
+  const now = new Date('2026-11-12T10:00:00Z'); // Thursday
+  const st = { working_days: [1, 2, 3, 4, 5], slots: { am: true, pm: true }, capacity_per_slot: 1, min_notice_days: 1, max_days_ahead: 14 };
+  const a = AV.computeAvailability(st, [{ start_date: '2026-11-17', end_date: '2026-11-18', slot: 'all' }, { start_date: '2026-11-19', end_date: '2026-11-19', slot: 'pm' }],
+    [{ status: 'paid', scheduled_date: '2026-11-13', scheduled_slot: 'am' },
+     { status: 'pending', scheduled_date: '2026-11-16', scheduled_slot: 'am', hold_expires_at: '2026-11-12T10:20:00Z' },
+     { status: 'pending', scheduled_date: '2026-11-16', scheduled_slot: 'pm', hold_expires_at: '2026-11-12T09:00:00Z' }], now);
+  assert.equal(a.first, '2026-11-13');
+  assert.deepEqual(a.days['2026-11-13'], { pm: 1 }, 'paid AM taken');
+  assert.ok(!a.days['2026-11-14'] && !a.days['2026-11-15'], 'weekend closed');
+  assert.deepEqual(a.days['2026-11-16'], { pm: 1 }, 'live hold blocks, expired hold frees');
+  assert.ok(!a.days['2026-11-17'] && !a.days['2026-11-18'], 'time off blocks');
+  assert.deepEqual(a.days['2026-11-19'], { am: 1 }, 'afternoon off');
+  console.log('Availability ✓');
+}
+
+// 14. Prices & hours + time off (admin) and instant booking (public)
+{
+  let r = await ST.PUT(req('/api/admin/settings', { method: 'PUT', body: {} })); assert.equal(r.status, 401);
+  r = await ST.PUT(req('/api/admin/settings', { method: 'PUT', ...auth, body: {
+    prices: { gutters: { semi: '60', detached: 80 }, fascia: { semi: '45.50' }, repairs: { semi: '' } },
+    surcharge_3plus: 20, working_days: [1, 2, 3, 4, 5, 6], slots: { am: true, pm: true }, capacity_per_slot: 1, min_notice_days: 1, max_days_ahead: 30 } }));
+  assert.equal(r.status, 200);
+  const saved = (await r.json()).settings;
+  assert.equal(saved.prices.gutters.semi, 6000); assert.equal(saved.prices.fascia.semi, 4550); assert.equal(saved.prices.repairs, undefined);
+  assert.equal(saved.surcharge_3plus, 2000);
+
+  // public options
+  r = await B.GET(req('/api/booking-options'));
+  const opt = await r.json();
+  assert.equal(opt.prices.gutters.semi, 6000);
+  const days = Object.keys(opt.availability.days);
+  assert.ok(days.length > 10);
+  const day = days.find((d) => opt.availability.days[d].am);
+
+  // time off removes a day
+  r = await TO.POST(req('/api/admin/time-off', { method: 'POST', ...auth, body: { start_date: days[1], end_date: days[2], note: 'Holiday' } }));
+  assert.equal(r.status, 200);
+  const offId = (await r.json()).timeOff.id;
+  r = await B.GET(req('/api/booking-options'));
+  let av = (await r.json()).availability.days;
+  assert.ok(!av[days[1]] && !av[days[2]], 'time off hidden from customers');
+  r = await TO.DELETE(req('/api/admin/time-off?id=' + offId, { method: 'DELETE', ...auth }));
+  r = await B.GET(req('/api/booking-options'));
+  av = (await r.json()).availability.days;
+  assert.ok(av[days[1]], 'deleting time off reopens the day');
+
+  const booking = { property_type: 'semi', storeys: '3+', services: ['gutters', 'fascia'], date: day, slot: 'am',
+    name: 'Amy Test', email: 'amy@test.com', phone: '07700 900111', address: '1 High St', postcode: 'WS1 1AA' };
+  // price on request -> rejected for instant booking
+  r = await B.POST(req('/api/book', { method: 'POST', body: { ...booking, services: ['repairs'] } }));
+  assert.equal(r.status, 400);
+  // good booking
+  const before = stripeCalls.length;
+  r = await B.POST(req('/api/book', { method: 'POST', body: booking }));
+  assert.equal(r.status, 200, await r.clone().text());
+  assert.match((await r.json()).url, /^https:\/\/checkout\.stripe\.com/);
+  const sess = stripeCalls.slice(before).find((c) => c.path === '/checkout/sessions');
+  assert.equal(sess.body['line_items[0][price_data][unit_amount]'], String(6000 + 4550 + 2000), 'server works out the price');
+  assert.equal(sess.body['line_items[0][price_data][currency]'], 'gbp');
+  const bjob = rows.find((j) => j.email === 'amy@test.com');
+  assert.equal(bjob.status, 'pending'); assert.equal(bjob.scheduled_date, day); assert.ok(bjob.stripe_session_id);
+
+  // the held slot is no longer offered, and double-booking it fails
+  r = await B.GET(req('/api/booking-options'));
+  assert.ok(!(await r.json()).availability.days[day]?.am, 'held slot hidden');
+  r = await B.POST(req('/api/book', { method: 'POST', body: { ...booking, email: 'bob@test.com' } }));
+  assert.equal(r.status, 409);
+
+  // Stripe says paid -> booked, emails sent
+  const pay = JSON.stringify({ type: 'checkout.session.completed', data: { object: { id: bjob.stripe_session_id, payment_status: 'paid', amount_total: 12550, metadata: { job_id: bjob.id } } } });
+  const ts = Math.floor(Date.now() / 1000);
+  const sg = createHmac('sha256', 'whsec_x').update(`${ts}.${pay}`).digest('hex');
+  const e0 = emails.length;
+  r = await W.POST(req('/api/stripe-webhook', { method: 'POST', body: pay, headers: { 'stripe-signature': `t=${ts},v1=${sg}` } }));
+  assert.equal(r.status, 200); assert.equal(bjob.status, 'paid'); assert.equal(bjob.hold_expires_at, null);
+  assert.equal(emails.length - e0, 2);
+  assert.ok(emails.some((e) => /New booking: Amy Test/.test(e.subject)));
+
+  // an abandoned checkout frees its slot when Stripe says it expired
+  const other = days.find((d) => d !== day && opt.availability.days[d].pm);
+  r = await B.POST(req('/api/book', { method: 'POST', body: { ...booking, email: 'carl@test.com', date: other, slot: 'pm' } }));
+  const cjob = rows.find((j) => j.email === 'carl@test.com');
+  const exp = JSON.stringify({ type: 'checkout.session.expired', data: { object: { id: cjob.stripe_session_id, metadata: { job_id: cjob.id } } } });
+  const sg2 = createHmac('sha256', 'whsec_x').update(`${ts}.${exp}`).digest('hex');
+  await W.POST(req('/api/stripe-webhook', { method: 'POST', body: exp, headers: { 'stripe-signature': `t=${ts},v1=${sg2}` } }));
+  assert.equal(cjob.status, 'cancelled');
+  r = await B.GET(req('/api/booking-options'));
+  assert.ok((await r.json()).availability.days[other]?.pm, 'expired checkout frees slot');
+
+  // price-on-request still works via /api/request with ids
+  r = await R.POST(req('/api/request', { method: 'POST', body: { ...booking, property_type: 'commercial', services: ['repairs', 'unsure'], email: 'dan@test.com' } }));
+  assert.equal(r.status, 200);
+  const djob = rows.find((j) => j.email === 'dan@test.com');
+  assert.equal(djob.property_type, 'Commercial'); assert.deepEqual(djob.services, ['Gutter repairs', 'Not sure – please advise']);
+  assert.equal(djob.preferred_date, day); assert.match(djob.notes, /Morning/);
+  console.log('Booking, prices & time off ✓');
+}
+
+// 15. Google reviews
+{
+  const RV = await import('../server/routes/reviews.js');
+  let r = await RV.GET(req('/api/reviews'));
+  assert.deepEqual((await r.json()).reviews, [], 'no key = no reviews');
+  process.env.GOOGLE_PLACES_API_KEY = 'gkey'; process.env.GOOGLE_PLACE_ID = 'ChIJ123';
+  r = await RV.GET(req('/api/reviews'));
+  const out = await r.json();
+  assert.equal(out.reviews.length, 2, 'only 4-5 star reviews');
+  assert.equal(out.reviews[0].author, 'Jo B'); assert.equal(out.googleUrl, 'https://maps.google.com/?cid=1');
+  assert.ok(!('count' in out) && !('rating' in out), 'no review count exposed');
+  delete process.env.GOOGLE_PLACES_API_KEY; delete process.env.GOOGLE_PLACE_ID;
+  console.log('Google reviews ✓');
+}
+
+// 12. Cloudflare Worker entry: settings arrive via env, website files via ASSETS
 {
   const saved = { ...process.env };
-  const cfEnv = { ...saved };
+  const cfEnv = { ...saved, ASSETS: { fetch: async (r) => new Response('static:' + new URL(r.url).pathname) } };
   for (const k of ['ADMIN_PASSWORD', 'SESSION_SECRET', 'CALENDAR_TOKEN', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY']) delete process.env[k];
-  const CS = await import('../functions/api/admin/session.js');
-  const CJ = await import('../functions/api/admin/jobs.js');
-  let r = await CS.onRequestPost({ request: req('/api/admin/session', { method: 'POST', body: { password: 'gutters123' } }), env: cfEnv });
+  const worker = (await import('../server/worker.js')).default;
+  let r = await worker.fetch(req('/api/admin/session', { method: 'POST', body: { password: 'gutters123' } }), cfEnv);
   assert.equal(r.status, 200);
   const c = r.headers.get('set-cookie').split(';')[0];
-  r = await CJ.onRequestGet({ request: req('/api/admin/jobs', { headers: { cookie: c } }), env: cfEnv });
-  assert.equal(r.status, 200); assert.equal((await r.json()).jobs.length, 1);
+  r = await worker.fetch(req('/api/admin/jobs', { headers: { cookie: c } }), cfEnv);
+  assert.equal(r.status, 200); assert.ok((await r.json()).jobs.length >= 1);
+  r = await worker.fetch(req('/admin'), cfEnv); assert.equal(await r.text(), 'static:/admin');
+  r = await worker.fetch(req('/api/nope'), cfEnv); assert.equal(r.status, 404);
+  r = await worker.fetch(req('/api/request'), cfEnv); assert.equal(r.status, 405);
   Object.assign(process.env, saved);
-  console.log('Cloudflare entry points ✓');
+  console.log('Cloudflare Worker entry ✓');
 }
+console.log('All tests passed ✓');

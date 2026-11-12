@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>You’re booked in – The Gutter Guy</title>
+<link rel="icon" href="/assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label="The Gutter Guy home"><img src="/assets/logo.png" alt="The Gutter Guy" width="140" height="76"></a>
+    <nav><a class="phone" href="tel:07460941982">07460 941982</a></nav>
+  </div>
+</header>
+<main>
+  <section>
+    <div class="wrap" style="max-width:620px">
+      <div class="card" style="background:#fff;border:1px solid var(--line);border-radius:18px;padding:40px 28px;box-shadow:var(--shadow)">
+        <div class="success">
+          <div class="tick"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 12l5 5L20 6"/></svg></div>
+          <h1 style="font-size:2rem">You’re booked in!</h1>
+          <p style="font-size:1.1rem" id="when"></p>
+          <p style="color:var(--muted)">Thanks for your payment. A confirmation email is on its way, and Stripe will send your receipt separately.</p>
+          <p style="color:var(--muted)">Need to change anything? Call or WhatsApp Roy on <a href="tel:07460941982">07460 941982</a>.</p>
+          <p style="margin-top:24px"><a class="btn ghost" href="/">Back to the website</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search), d = q.get('date'), s = q.get('slot');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d || '')) {
+      var day = new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      document.getElementById('when').textContent = 'See you on ' + day + (s === 'am' ? ', in the morning (8am–12pm).' : s === 'pm' ? ', in the afternoon (12pm–5pm).' : '.');
+    }
+  })();
+</script>
+</body>
+</html>

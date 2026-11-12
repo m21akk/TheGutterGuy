@@ -32,7 +32,8 @@
 
   // ---------- Pricing (same rules as the server) ----------
   function servicePrice(id) {
-    const p = opts.services.find((s) => s.id === id)?.price;
+    const svc = opts.services.find((s) => s.id === id);
+    const p = svc?.prices?.[state.property === 'bungalow' ? '1' : state.storeys];
     return Number.isInteger(p) && p > 0 ? p : null;
   }
   function total() {
@@ -45,7 +46,6 @@
       if (p === null) return null;
       t += p;
     }
-    if (state.storeys === '3+') t += opts.surcharge3plus || 0;
     return t;
   }
   const instant = () => typeof total() === 'number';
@@ -66,7 +66,7 @@
     $('#storeys-wrap').style.display = state.property === 'bungalow' ? 'none' : '';
     $('#storey-chips').innerHTML = opts.storeys.map((s) =>
       `<label class="chip"><input type="radio" name="storeys" value="${s}" ${state.storeys === s ? 'checked' : ''}><span>${s === '3+' ? '3 or more' : s}</span></label>`).join('');
-    $('#storey-chips').querySelectorAll('input').forEach((i) => (i.onchange = () => { state.storeys = i.value; renderSummary(); }));
+    $('#storey-chips').querySelectorAll('input').forEach((i) => (i.onchange = () => { state.storeys = i.value; renderServices(); renderSummary(); }));
   }
 
   // ---------- Step 2: services ----------
@@ -75,8 +75,13 @@
     $('#service-list').innerHTML = rows.map((s) => {
       let price = '';
       if (s.id !== 'unsure') {
-        const p = servicePrice(s.id);
-        price = p ? `<span class="pr">${money(p)}</span>` : '<span class="pr ask">Price on request</span>';
+        if (state.storeys || state.property === 'bungalow') {
+          const p = servicePrice(s.id);
+          price = p ? `<span class="pr">${money(p)}</span>` : '<span class="pr ask">Price on request</span>';
+        } else {
+          const all = Object.values(s.prices || {}).filter((v) => v > 0);
+          price = all.length ? `<span class="pr ask">from ${money(Math.min(...all))}</span>` : '<span class="pr ask">Price on request</span>';
+        }
       }
       return `<label class="svc ${state.services.has(s.id) ? 'on' : ''}"><input type="checkbox" value="${s.id}" ${state.services.has(s.id) ? 'checked' : ''}><span class="nm">${esc(s.name)}</span>${price}</label>`;
     }).join('');
@@ -138,7 +143,6 @@
       ['Day', state.date ? longDate(state.date) : '–'],
       ['Time', state.slot ? `${SLOT_SHORT[state.slot]} (${SLOT_TIME[state.slot]})` : '–'],
     ];
-    if (state.storeys === '3+' && opts.surcharge3plus && instant()) lines.push(['3+ storeys', '+' + money(opts.surcharge3plus)]);
     $('#sum-lines').innerHTML = lines.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
     const t = total();
     const btn = $('#submit-btn');
@@ -267,11 +271,10 @@
       days[iso(d)] = i % 5 === 0 ? { pm: 1 } : i % 7 === 0 ? { am: 1 } : { am: 2, pm: 2 };
     }
     return {
-      services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', price: 6000 }, { id: 'fascia', name: 'Fascia & gutter cleaning', price: 4500 }, { id: 'conservatory', name: 'Conservatory roof cleaning', price: 7000 }, { id: 'cladding', name: 'Cladding cleaning', price: null }, { id: 'repairs', name: 'Gutter repairs', price: null }],
+      services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', prices: { 1: 4500, 2: 6000, '3+': 8000 } }, { id: 'fascia', name: 'Fascia & gutter cleaning', prices: { 1: 3500, 2: 4500, '3+': 6000 } }, { id: 'conservatory', name: 'Conservatory roof cleaning', prices: { 1: 7000, 2: 7000, '3+': 7000 } }, { id: 'cladding', name: 'Cladding cleaning', prices: {} }, { id: 'repairs', name: 'Gutter repairs', prices: {} }],
       propertyTypes: [{ id: 'terraced', name: 'Terraced' }, { id: 'semi', name: 'Semi-detached' }, { id: 'detached', name: 'Detached' }, { id: 'bungalow', name: 'Bungalow' }, { id: 'flat', name: 'Flat / apartment' }],
       quoteOnlyPropertyTypes: [{ id: 'commercial', name: 'Commercial' }, { id: 'other', name: 'Other' }],
       storeys: ['1', '2', '3+'],
-      surcharge3plus: 2000,
       availability: { first: iso(new Date(t.getTime() + 864e5)), last: iso(new Date(t.getTime() + 60 * 864e5)), days },
     };
   }

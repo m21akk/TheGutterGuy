@@ -2,7 +2,7 @@
 //   GET  /api/booking-options – services, property types, prices and free slots
 //   POST /api/book            – hold a slot and start a Stripe Checkout payment
 import { route, json, fail, clean, readJson, siteUrl, niceDate } from '../util.js';
-import { PROPERTY_TYPES, QUOTE_ONLY_PROPERTY, STOREYS, SLOT_NAMES, priceFor, activeServices } from '../catalog.js';
+import { PROPERTY_TYPES, QUOTE_ONLY_PROPERTY, STOREYS, SLOT_NAMES, priceFor, activeServices, servicePrice } from '../catalog.js';
 import { loadAvailability } from '../booking-data.js';
 import { slotIsFree } from '../availability.js';
 import { insertJob, updateJob, uploadPhoto } from '../db.js';
@@ -14,12 +14,11 @@ const HOLD_MINUTES = 35; // Stripe Checkout gives the customer 30 minutes to pay
 export const GET = route(async () => {
   const { settings, availability } = await loadAvailability();
   return json({
-    services: activeServices(settings).map(({ id, name, price }) => ({ id, name, price: price || null })),
+    services: activeServices(settings).map((s) => ({ id: s.id, name: s.name, prices: Object.fromEntries(STOREYS.map((n) => [n, servicePrice(s, n)])) })),
     propertyTypes: PROPERTY_TYPES,
     quoteOnlyPropertyTypes: QUOTE_ONLY_PROPERTY,
     storeys: STOREYS,
     slotNames: SLOT_NAMES,
-    surcharge3plus: settings.surcharge_3plus || 0,
     availability,
   });
 });

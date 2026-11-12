@@ -312,17 +312,20 @@
   // ---------- Prices & hours ----------
   const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   let svcRows = [];
+  const toRow = (sv) => ({ id: sv.id, name: sv.name, active: sv.active !== false,
+    prices: Object.fromEntries(['1', '2', '3+'].map((n) => [n, pounds(sv.prices?.[n] ?? sv.price)])) });
   const pounds = (p) => (p ? (p / 100).toFixed(p % 100 ? 2 : 0) : '');
   function renderSvcRows() {
     $('#svc-admin').innerHTML = svcRows.map((r, i) => `<div class="svc-row ${r.active === false ? 'off' : ''}">
       <input type="text" data-i="${i}" data-k="name" value="${esc(r.name)}" placeholder="Service name, e.g. Soffit cleaning">
-      <div class="cell"><span>£</span><input type="number" min="0" step="0.01" inputmode="decimal" data-i="${i}" data-k="price" value="${esc(r.price)}" placeholder="On request"></div>
+      ${['1', '2', '3+'].map((n) => `<div class="cell" data-l="${n === '1' ? '1 storey' : n + ' storeys'}"><span>£</span><input type="number" min="0" step="0.01" inputmode="decimal" data-i="${i}" data-k="p${n}" value="${esc(r.prices[n] || '')}" placeholder="–" aria-label="${esc(r.name)} – ${n} storey price"></div>`).join('')}
       <label class="tog"><input type="checkbox" data-i="${i}" data-k="active" ${r.active === false ? '' : 'checked'}> Bookable</label>
       <button type="button" class="del" data-del="${i}" aria-label="Remove service">×</button>
     </div>`).join('');
     $('#svc-admin').querySelectorAll('input').forEach((inp) => (inp.oninput = inp.onchange = () => {
       const r = svcRows[inp.dataset.i];
       if (inp.dataset.k === 'active') { r.active = inp.checked; inp.closest('.svc-row').classList.toggle('off', !inp.checked); }
+      else if (inp.dataset.k.startsWith('p')) r.prices[inp.dataset.k.slice(1)] = inp.value;
       else r[inp.dataset.k] = inp.value;
     }));
     $('#svc-admin').querySelectorAll('[data-del]').forEach((b) => (b.onclick = () => {
@@ -330,14 +333,13 @@
       svcRows.splice(b.dataset.del, 1); renderSvcRows();
     }));
   }
-  $('#svc-add').onclick = () => { svcRows.push({ name: '', price: '', active: true }); renderSvcRows(); $('#svc-admin .svc-row:last-child input').focus(); };
+  $('#svc-add').onclick = () => { svcRows.push({ name: '', prices: {}, active: true }); renderSvcRows(); $('#svc-admin .svc-row:last-child input').focus(); };
 
   async function loadPrices() {
     try {
       const { settings: st } = await api('/api/admin/settings');
-      svcRows = st.services.map((sv) => ({ id: sv.id, name: sv.name, price: pounds(sv.price), active: sv.active !== false }));
+      svcRows = st.services.map(toRow);
       renderSvcRows();
-      $('#pr-surcharge').value = pounds(st.surcharge_3plus);
       $('#pr-days').innerHTML = [1, 2, 3, 4, 5, 6, 0].map((d) =>
         `<label class="chip"><input type="checkbox" value="${d}" ${st.working_days.includes(d) ? 'checked' : ''}><span>${DAY_NAMES[d]}</span></label>`).join('');
       $('#pr-am').checked = !!st.slots.am; $('#pr-pm').checked = !!st.slots.pm;
@@ -353,13 +355,12 @@
     try {
       const { settings: saved } = await api('/api/admin/settings', { method: 'PUT', body: {
         services: svcRows.filter((r) => r.name.trim()),
-        surcharge_3plus: $('#pr-surcharge').value,
         working_days: [...document.querySelectorAll('#pr-days input:checked')].map((i) => Number(i.value)),
         slots: { am: $('#pr-am').checked, pm: $('#pr-pm').checked },
         closed_bank_holidays: $('#pr-bh').checked,
         capacity_per_slot: $('#pr-cap').value, min_notice_days: $('#pr-notice').value, max_days_ahead: $('#pr-ahead').value,
       } });
-      if (saved?.services) { svcRows = saved.services.map((sv) => ({ id: sv.id, name: sv.name, price: pounds(sv.price), active: sv.active !== false })); renderSvcRows(); }
+      if (saved?.services) { svcRows = saved.services.map(toRow); renderSvcRows(); }
       toast('Saved – the booking page is updated');
     } catch (ex) { toast(ex.message); }
   };
@@ -386,7 +387,7 @@
     if (path === '/api/admin/jobs' && opts.method === 'PATCH') { Object.assign(find(b.id), b); delete find(b.id).notify; return Promise.resolve({}); }
     if (path === '/api/admin/send-quote') { Object.assign(find(b.id), { status: 'quoted', price_pence: Math.round(b.price * 100), quoted_at: new Date().toISOString(), scheduled_date: b.scheduled_date || null, quote_message: b.message, invoice_url: 'https://invoice.stripe.com/' }); return Promise.resolve({}); }
     window.__demoOff ||= [{ id: 'to1', start_date: (() => { const d = new Date(Date.now() + 9 * 864e5); return iso(d); })(), end_date: (() => { const d = new Date(Date.now() + 11 * 864e5); return iso(d); })(), slot: 'all', note: 'Holiday' }];
-    window.__demoSettings ||= { services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', price: 6000, active: true }, { id: 'fascia', name: 'Fascia & gutter cleaning', price: 4500, active: true }, { id: 'conservatory', name: 'Conservatory roof cleaning', price: 7000, active: true }, { id: 'cladding', name: 'Cladding cleaning', price: null, active: true }, { id: 'repairs', name: 'Gutter repairs', price: null, active: true }], surcharge_3plus: 2000, working_days: [1, 2, 3, 4, 5, 6], closed_bank_holidays: true, slots: { am: true, pm: true }, capacity_per_slot: 2, min_notice_days: 1, max_days_ahead: 60 };
+    window.__demoSettings ||= { services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', prices: { 1: 4500, 2: 6000, '3+': 8000 }, active: true }, { id: 'fascia', name: 'Fascia & gutter cleaning', prices: { 1: 3500, 2: 4500, '3+': 6000 }, active: true }, { id: 'conservatory', name: 'Conservatory roof cleaning', prices: { 1: 7000, 2: 7000, '3+': 7000 }, active: true }, { id: 'cladding', name: 'Cladding cleaning', prices: {}, active: true }, { id: 'repairs', name: 'Gutter repairs', prices: {}, active: true }], working_days: [1, 2, 3, 4, 5, 6], closed_bank_holidays: true, slots: { am: true, pm: true }, capacity_per_slot: 2, min_notice_days: 1, max_days_ahead: 60 };
     if (path.startsWith('/api/admin/time-off') && !opts.method) return Promise.resolve({ timeOff: window.__demoOff });
     if (path.startsWith('/api/admin/time-off') && opts.method === 'POST') { window.__demoOff.push({ id: 'to' + Date.now(), ...b }); window.__demoOff.sort((x, y) => x.start_date.localeCompare(y.start_date)); return Promise.resolve({}); }
     if (path.startsWith('/api/admin/time-off') && opts.method === 'DELETE') { const id = path.split('=')[1]; window.__demoOff = window.__demoOff.filter((t) => t.id !== id); return Promise.resolve({}); }

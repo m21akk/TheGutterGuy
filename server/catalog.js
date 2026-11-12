@@ -29,9 +29,8 @@ export const STOREYS = ['1', '2', '3+'];
 export const SLOT_NAMES = { am: 'Morning (8am–12pm)', pm: 'Afternoon (12pm–5pm)' };
 
 export const DEFAULT_SETTINGS = {
-  // Roy's services list. price = pence, or null for "price on request".
-  services: SERVICES.map((sv) => ({ ...sv, price: null, active: true })),
-  surcharge_3plus: 0,      // extra pence for 3+ storey properties
+  // Roy's services list. prices[storeys] = pence; a missing price means "price on request".
+  services: SERVICES.map((sv) => ({ ...sv, prices: {}, active: true })),
   working_days: [1, 2, 3, 4, 5, 6], // Monday–Saturday (0 = Sunday … 6 = Saturday)
   closed_bank_holidays: true,       // England & Wales bank holidays
   slots: { am: true, pm: true },
@@ -50,16 +49,21 @@ export function mergeSettings(saved) {
 
 export const activeServices = (settings) => settings.services.filter((s) => s.active !== false);
 
+// Price in pence for one service at a given number of storeys, or null.
+export function servicePrice(svc, storeys) {
+  const p = svc?.prices?.[storeys] ?? svc?.price; // `price` = older single-price format
+  return Number.isInteger(p) && p > 0 ? p : null;
+}
+
 // Work out the total for a booking. Returns null if anything needs pricing by Roy.
 export function priceFor(settings, propertyId, storeys, serviceIds) {
   if (!PROPERTY_TYPES.some((p) => p.id === propertyId)) return null;
   if (!serviceIds.length) return null;
   let total = 0;
   for (const id of serviceIds) {
-    const svc = activeServices(settings).find((s) => s.id === id);
-    if (!svc || !Number.isInteger(svc.price) || svc.price <= 0) return null;
-    total += svc.price;
+    const p = servicePrice(activeServices(settings).find((s) => s.id === id), storeys);
+    if (p === null) return null;
+    total += p;
   }
-  if (storeys === '3+') total += Math.max(0, settings.surcharge_3plus || 0);
   return total;
 }

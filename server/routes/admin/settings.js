@@ -31,7 +31,9 @@ export const PUT = route(async (request) => {
     if (!name) continue;
     let id = /^[a-z0-9-]{1,40}$/.test(row.id || '') ? row.id : name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'service';
     while (services.some((s) => s.id === id)) id += '-2';
-    services.push({ id, name, price: pence(row.price), active: row.active !== false });
+    const prices = {};
+    for (const n of ['1', '2', '3+']) { const v = pence(row.prices?.[n]); if (v) prices[n] = v; }
+    services.push({ id, name, prices, active: row.active !== false });
   }
   if (!services.length) return fail('Add at least one service.');
   const working_days = [...new Set((b.working_days || []).map(Number))].filter((d) => d >= 0 && d <= 6).sort();
@@ -40,7 +42,6 @@ export const PUT = route(async (request) => {
   if (!slots.am && !slots.pm) return fail('Turn on at least morning or afternoon.');
   const data = {
     services,
-    surcharge_3plus: pence(b.surcharge_3plus) || 0,
     working_days,
     closed_bank_holidays: b.closed_bank_holidays !== false,
     slots,

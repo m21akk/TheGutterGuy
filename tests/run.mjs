@@ -191,20 +191,20 @@ console.log('Core flow ✓');
 {
   let r = await ST.PUT(req('/api/admin/settings', { method: 'PUT', body: {} })); assert.equal(r.status, 401);
   r = await ST.PUT(req('/api/admin/settings', { method: 'PUT', ...auth, body: {
-    services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', price: '60' }, { id: 'fascia', name: 'Fascia & gutter cleaning', price: '45.50' },
-      { id: 'repairs', name: 'Gutter repairs', price: '' }, { name: 'Soffit cleaning', price: 30 }, { name: 'Moss removal', price: 25, active: false }],
-    surcharge_3plus: 20, working_days: [0, 1, 2, 3, 4, 5, 6], slots: { am: true, pm: true }, capacity_per_slot: 1, min_notice_days: 1, max_days_ahead: 30 } }));
+    services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', prices: { 1: '45', 2: '60', '3+': '80' } }, { id: 'fascia', name: 'Fascia & gutter cleaning', prices: { 2: '45.50', '3+': 65 } },
+      { id: 'repairs', name: 'Gutter repairs', prices: { 2: '' } }, { name: 'Soffit cleaning', prices: { 2: 30 } }, { name: 'Moss removal', prices: { 2: 25 }, active: false }],
+    working_days: [0, 1, 2, 3, 4, 5, 6], slots: { am: true, pm: true }, capacity_per_slot: 1, min_notice_days: 1, max_days_ahead: 30 } }));
   assert.equal(r.status, 200);
   const saved = (await r.json()).settings;
   const sv = Object.fromEntries(saved.services.map((x) => [x.id, x]));
-  assert.equal(sv.gutters.price, 6000); assert.equal(sv.fascia.price, 4550); assert.equal(sv.repairs.price, null);
-  assert.equal(sv['soffit-cleaning'].price, 3000, 'new service added with an id');
-  assert.equal(saved.surcharge_3plus, 2000);
+  assert.deepEqual(sv.gutters.prices, { 1: 4500, 2: 6000, '3+': 8000 }); assert.equal(sv.fascia.prices['2'], 4550);
+  assert.deepEqual(sv.repairs.prices, {}); assert.equal(sv['soffit-cleaning'].prices['2'], 3000, 'new service added with an id');
 
   // public options
   r = await B.GET(req('/api/booking-options'));
   const opt = await r.json();
-  assert.equal(opt.services.find((x) => x.id === 'gutters').price, 6000);
+  assert.deepEqual(opt.services.find((x) => x.id === 'gutters').prices, { 1: 4500, 2: 6000, '3+': 8000 });
+  assert.equal(opt.services.find((x) => x.id === 'fascia').prices['1'], null, 'missing storey price = on request');
   assert.ok(opt.services.some((x) => x.id === 'soffit-cleaning'), 'new service offered');
   assert.ok(!opt.services.some((x) => x.id === 'moss-removal'), 'switched-off service hidden');
   const days = Object.keys(opt.availability.days);
@@ -239,13 +239,15 @@ console.log('Core flow ✓');
   // price on request -> rejected for instant booking
   r = await B.POST(req('/api/book', { method: 'POST', body: { ...booking, services: ['repairs'] } }));
   assert.equal(r.status, 400);
+  r = await B.POST(req('/api/book', { method: 'POST', body: { ...booking, storeys: '1' } }));
+  assert.equal(r.status, 400, 'no 1-storey fascia price -> needs Roy to price it');
   // good booking
   const before = stripeCalls.length;
   r = await B.POST(req('/api/book', { method: 'POST', body: booking }));
   assert.equal(r.status, 200, await r.clone().text());
   assert.match((await r.json()).url, /^https:\/\/checkout\.stripe\.com/);
   const sess = stripeCalls.slice(before).find((c) => c.path === '/checkout/sessions');
-  assert.equal(sess.body['line_items[0][price_data][unit_amount]'], String(6000 + 4550 + 2000), 'server works out the price');
+  assert.equal(sess.body['line_items[0][price_data][unit_amount]'], String(8000 + 6500), 'server uses the 3+ storey prices');
   assert.equal(sess.body['line_items[0][price_data][currency]'], 'gbp');
   const bjob = rows.find((j) => j.email === 'amy@test.com');
   assert.equal(bjob.status, 'pending'); assert.equal(bjob.scheduled_date, day); assert.ok(bjob.stripe_session_id);

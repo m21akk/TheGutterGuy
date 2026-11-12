@@ -79,14 +79,16 @@
     <section id="view-prices" class="view" hidden>
       <form id="pr-form">
         <div class="panel">
-          <h2>Prices</h2>
-          <p class="hint">What customers pay when they book online. Leave a box empty and that job will say “Price on request” – the customer sends you a request and you price it from the Jobs tab.</p>
-          <div class="price-table-wrap"><table class="price-table" id="price-table"></table></div>
-          <div class="field" style="max-width:260px;margin-top:16px"><label for="pr-surcharge">Extra for 3+ storey houses</label><div class="price-input"><span>£</span><input id="pr-surcharge" type="number" min="0" step="0.01" inputmode="decimal"></div></div>
+          <h2>Services &amp; prices</h2>
+          <p class="hint">These are the services customers can book. Type a price and they can book and pay straight away. Leave the price empty and it shows “Price on request” – the customer sends you a request and you price it from the Jobs tab.</p>
+          <div class="svc-admin" id="svc-admin"></div>
+          <button type="button" class="btn ghost small" id="svc-add" style="margin-top:12px">+ Add a service</button>
+          <div class="field" style="max-width:260px;margin-top:22px"><label for="pr-surcharge">Extra for 3+ storey houses <small>(optional)</small></label><div class="price-input"><span>£</span><input id="pr-surcharge" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></div></div>
         </div>
         <div class="panel">
           <h2>Working hours</h2>
           <div class="field"><label>Days you work</label><div class="chips" id="pr-days"></div></div>
+          <label class="check" style="margin:-4px 0 16px"><input type="checkbox" id="pr-bh"> Closed on bank holidays (England &amp; Wales – worked out automatically)</label>
           <div class="field"><label>Slots</label>
             <div class="chips">
               <label class="chip"><input type="checkbox" id="pr-am"><span>Morning (8am–12pm)</span></label>

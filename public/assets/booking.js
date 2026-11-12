@@ -32,7 +32,7 @@
 
   // ---------- Pricing (same rules as the server) ----------
   function servicePrice(id) {
-    const p = opts.prices?.[id]?.[state.property];
+    const p = opts.services.find((s) => s.id === id)?.price;
     return Number.isInteger(p) && p > 0 ? p : null;
   }
   function total() {
@@ -75,13 +75,8 @@
     $('#service-list').innerHTML = rows.map((s) => {
       let price = '';
       if (s.id !== 'unsure') {
-        if (state.property) {
-          const p = servicePrice(s.id);
-          price = p ? `<span class="pr">${money(p)}</span>` : '<span class="pr ask">Price on request</span>';
-        } else {
-          const all = Object.values(opts.prices?.[s.id] || {}).filter((v) => v > 0);
-          price = all.length ? `<span class="pr ask">from ${money(Math.min(...all))}</span>` : '';
-        }
+        const p = servicePrice(s.id);
+        price = p ? `<span class="pr">${money(p)}</span>` : '<span class="pr ask">Price on request</span>';
       }
       return `<label class="svc ${state.services.has(s.id) ? 'on' : ''}"><input type="checkbox" value="${s.id}" ${state.services.has(s.id) ? 'checked' : ''}><span class="nm">${esc(s.name)}</span>${price}</label>`;
     }).join('');
@@ -268,15 +263,14 @@
     const days = {}; const t = new Date();
     for (let i = 1; i <= 60; i++) {
       const d = new Date(t); d.setDate(t.getDate() + i);
-      if (d.getDay() === 0 || [9, 10, 11].includes(i)) continue;
+      if (d.getDay() === 0 || [9, 10, 11].includes(i) || (d.getMonth() === 11 && [25, 26, 28].includes(d.getDate()))) continue;
       days[iso(d)] = i % 5 === 0 ? { pm: 1 } : i % 7 === 0 ? { am: 1 } : { am: 2, pm: 2 };
     }
     return {
-      services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared' }, { id: 'fascia', name: 'Fascia & gutter cleaning' }, { id: 'conservatory', name: 'Conservatory roof cleaning' }, { id: 'cladding', name: 'Cladding cleaning' }, { id: 'repairs', name: 'Gutter repairs' }],
+      services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', price: 6000 }, { id: 'fascia', name: 'Fascia & gutter cleaning', price: 4500 }, { id: 'conservatory', name: 'Conservatory roof cleaning', price: 7000 }, { id: 'cladding', name: 'Cladding cleaning', price: null }, { id: 'repairs', name: 'Gutter repairs', price: null }],
       propertyTypes: [{ id: 'terraced', name: 'Terraced' }, { id: 'semi', name: 'Semi-detached' }, { id: 'detached', name: 'Detached' }, { id: 'bungalow', name: 'Bungalow' }, { id: 'flat', name: 'Flat / apartment' }],
       quoteOnlyPropertyTypes: [{ id: 'commercial', name: 'Commercial' }, { id: 'other', name: 'Other' }],
       storeys: ['1', '2', '3+'],
-      prices: { gutters: { terraced: 5000, semi: 6000, detached: 8000, bungalow: 5500, flat: 5000 }, fascia: { terraced: 4000, semi: 4500, detached: 6000, bungalow: 4000, flat: 4000 }, conservatory: { semi: 7000, detached: 8000, bungalow: 7000 }, cladding: {} },
       surcharge3plus: 2000,
       availability: { first: iso(new Date(t.getTime() + 864e5)), last: iso(new Date(t.getTime() + 60 * 864e5)), days },
     };

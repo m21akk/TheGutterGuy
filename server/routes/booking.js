@@ -2,7 +2,7 @@
 //   GET  /api/booking-options – services, property types, prices and free slots
 //   POST /api/book            – hold a slot and start a Stripe Checkout payment
 import { route, json, fail, clean, readJson, siteUrl, niceDate } from '../util.js';
-import { SERVICES, PROPERTY_TYPES, QUOTE_ONLY_PROPERTY, STOREYS, SLOT_NAMES, priceFor } from '../catalog.js';
+import { PROPERTY_TYPES, QUOTE_ONLY_PROPERTY, STOREYS, SLOT_NAMES, priceFor, activeServices } from '../catalog.js';
 import { loadAvailability } from '../booking-data.js';
 import { slotIsFree } from '../availability.js';
 import { insertJob, updateJob, uploadPhoto } from '../db.js';
@@ -14,12 +14,11 @@ const HOLD_MINUTES = 35; // Stripe Checkout gives the customer 30 minutes to pay
 export const GET = route(async () => {
   const { settings, availability } = await loadAvailability();
   return json({
-    services: SERVICES,
+    services: activeServices(settings).map(({ id, name, price }) => ({ id, name, price: price || null })),
     propertyTypes: PROPERTY_TYPES,
     quoteOnlyPropertyTypes: QUOTE_ONLY_PROPERTY,
     storeys: STOREYS,
     slotNames: SLOT_NAMES,
-    prices: settings.prices,
     surcharge3plus: settings.surcharge_3plus || 0,
     availability,
   });
@@ -64,15 +63,15 @@ export const POST = route(async (request) => {
 
   const property = PROPERTY_TYPES.find((p) => p.id === b.property_type);
   const storeys = STOREYS.includes(String(b.storeys)) ? String(b.storeys) : null;
-  const serviceIds = [...new Set(Array.isArray(b.services) ? b.services : [])].filter((id) => SERVICES.some((s) => s.id === id));
   if (!property) return fail('Please choose your property type.');
   if (!storeys) return fail('Please choose how many storeys.');
-  if (!serviceIds.length) return fail('Please choose at least one service.');
-
   const [customer, err] = customerFields(b);
   if (err) return fail(err);
 
   const { settings, availability } = await loadAvailability();
+  const services = activeServices(settings);
+  const serviceIds = [...new Set(Array.isArray(b.services) ? b.services : [])].filter((id) => services.some((s) => s.id === id));
+  if (!serviceIds.length) return fail('Please choose at least one service.');
   const price = priceFor(settings, property.id, storeys, serviceIds);
   if (price === null) return fail('Sorry, that job needs pricing by Roy – please send a booking request instead.');
 
@@ -82,7 +81,7 @@ export const POST = route(async (request) => {
     return fail('Sorry, that time has just been taken – please pick another slot.', 409);
   }
 
-  const serviceNames = serviceIds.map((id) => SERVICES.find((s) => s.id === id).name);
+  const serviceNames = serviceIds.map((id) => services.find((s) => s.id === id).name);
   const job = await insertJob({
     ...customer,
     property_type: property.name,

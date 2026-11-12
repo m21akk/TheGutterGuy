@@ -3,11 +3,12 @@ import { route, json, fail, readJson } from '../../util.js';
 import { requireAdmin } from '../../auth.js';
 import { saveSettingsRow } from '../../db.js';
 import { loadSettings } from '../../booking-data.js';
-import { SERVICES, PROPERTY_TYPES } from '../../catalog.js';
+import { PROPERTY_TYPES } from '../../catalog.js';
+import { clean } from '../../util.js';
 
 export const GET = route(async (request) => {
   await requireAdmin(request);
-  return json({ settings: await loadSettings(), services: SERVICES, propertyTypes: PROPERTY_TYPES });
+  return json({ settings: await loadSettings(), propertyTypes: PROPERTY_TYPES });
 });
 
 const pence = (v) => {
@@ -24,21 +25,24 @@ const int = (v, min, max, dflt) => {
 export const PUT = route(async (request) => {
   await requireAdmin(request);
   const b = await readJson(request, 50_000);
-  const prices = {};
-  for (const s of SERVICES) {
-    for (const p of PROPERTY_TYPES) {
-      const v = pence(b.prices?.[s.id]?.[p.id]);
-      if (v) (prices[s.id] ||= {})[p.id] = v;
-    }
+  const services = [];
+  for (const row of (Array.isArray(b.services) ? b.services : []).slice(0, 40)) {
+    const name = clean(row?.name, 80);
+    if (!name) continue;
+    let id = /^[a-z0-9-]{1,40}$/.test(row.id || '') ? row.id : name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'service';
+    while (services.some((s) => s.id === id)) id += '-2';
+    services.push({ id, name, price: pence(row.price), active: row.active !== false });
   }
+  if (!services.length) return fail('Add at least one service.');
   const working_days = [...new Set((b.working_days || []).map(Number))].filter((d) => d >= 0 && d <= 6).sort();
   const slots = { am: !!b.slots?.am, pm: !!b.slots?.pm };
   if (!working_days.length) return fail('Pick at least one working day.');
   if (!slots.am && !slots.pm) return fail('Turn on at least morning or afternoon.');
   const data = {
-    prices,
+    services,
     surcharge_3plus: pence(b.surcharge_3plus) || 0,
     working_days,
+    closed_bank_holidays: b.closed_bank_holidays !== false,
     slots,
     capacity_per_slot: int(b.capacity_per_slot, 1, 20, 2),
     min_notice_days: int(b.min_notice_days, 0, 30, 1),

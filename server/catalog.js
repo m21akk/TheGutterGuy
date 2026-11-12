@@ -1,5 +1,6 @@
 // What can be booked, and the default settings Roy can change in the back office.
 
+// Starting list – Roy can rename, add, remove and price these in Prices & hours.
 export const SERVICES = [
   { id: 'gutters', name: 'Gutters vacuumed / cleared' },
   { id: 'fascia', name: 'Fascia & gutter cleaning' },
@@ -28,9 +29,11 @@ export const STOREYS = ['1', '2', '3+'];
 export const SLOT_NAMES = { am: 'Morning (8am–12pm)', pm: 'Afternoon (12pm–5pm)' };
 
 export const DEFAULT_SETTINGS = {
-  prices: {},              // prices[serviceId][propertyId] = pence, or missing = "price on request"
+  // Roy's services list. price = pence, or null for "price on request".
+  services: SERVICES.map((sv) => ({ ...sv, price: null, active: true })),
   surcharge_3plus: 0,      // extra pence for 3+ storey properties
-  working_days: [1, 2, 3, 4, 5, 6], // 0 = Sunday … 6 = Saturday
+  working_days: [1, 2, 3, 4, 5, 6], // Monday–Saturday (0 = Sunday … 6 = Saturday)
+  closed_bank_holidays: true,       // England & Wales bank holidays
   slots: { am: true, pm: true },
   capacity_per_slot: 2,    // jobs Roy can do in one morning / afternoon
   min_notice_days: 1,      // 1 = earliest booking is tomorrow
@@ -40,9 +43,12 @@ export const DEFAULT_SETTINGS = {
 export function mergeSettings(saved) {
   const s = { ...DEFAULT_SETTINGS, ...(saved || {}) };
   s.slots = { ...DEFAULT_SETTINGS.slots, ...(saved?.slots || {}) };
-  s.prices = saved?.prices || {};
+  s.services = Array.isArray(saved?.services) && saved.services.length ? saved.services : DEFAULT_SETTINGS.services;
+  delete s.prices;
   return s;
 }
+
+export const activeServices = (settings) => settings.services.filter((s) => s.active !== false);
 
 // Work out the total for a booking. Returns null if anything needs pricing by Roy.
 export function priceFor(settings, propertyId, storeys, serviceIds) {
@@ -50,9 +56,9 @@ export function priceFor(settings, propertyId, storeys, serviceIds) {
   if (!serviceIds.length) return null;
   let total = 0;
   for (const id of serviceIds) {
-    const p = settings.prices?.[id]?.[propertyId];
-    if (!Number.isInteger(p) || p <= 0) return null;
-    total += p;
+    const svc = activeServices(settings).find((s) => s.id === id);
+    if (!svc || !Number.isInteger(svc.price) || svc.price <= 0) return null;
+    total += svc.price;
   }
   if (storeys === '3+') total += Math.max(0, settings.surcharge_3plus || 0);
   return total;

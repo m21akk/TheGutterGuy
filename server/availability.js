@@ -1,5 +1,6 @@
 // Works out which mornings/afternoons still have space, taking into account
-// Roy's working days, time off, and jobs already booked (or being paid for right now).
+// Roy's working days, bank holidays, time off, and jobs already booked (or being paid for right now).
+import { isBankHoliday } from './bank-holidays.js';
 
 export function londonToday(now = new Date()) {
   return now.toLocaleDateString('en-CA', { timeZone: 'Europe/London' }); // YYYY-MM-DD
@@ -45,6 +46,7 @@ export function computeAvailability(settings, timeOff, jobs, now = new Date()) {
   const days = {};
   for (let d = first; d <= last; d = addDays(d, 1)) {
     if (!settings.working_days.includes(weekday(d))) continue;
+    if (settings.closed_bank_holidays !== false && isBankHoliday(d)) continue;
     const off = timeOff.filter((t) => t.start_date <= d && d <= t.end_date);
     if (off.some((t) => !t.slot || t.slot === 'all')) continue;
     const day = {};

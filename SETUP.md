@@ -95,9 +95,12 @@ In test mode Stripe **doesn't email** real customers, so tap **View quote** inst
 ## Step 4b – Set Roy's prices and hours
 
 1. Log in at **/admin** and open **Prices & hours**.
-2. Fill in a price for each job and property type. **Leave a box empty** for anything Roy wants to price himself. Customers will see "Price on request" and send a booking request instead.
-3. Set the extra charge for 3+ storey houses, the days he works, morning and/or afternoon, how many jobs he can fit in each slot, and how far ahead people can book. Click **Save**.
-4. Use the **Time off** tab for holidays. Those dates vanish from the booking calendar straight away.
+2. Under **Services & prices**, type a price next to each service. **Leave it empty** for anything Roy wants to price himself. Customers will see "Price on request" and send a booking request instead.
+   - **+ Add a service** adds a new one, and you can rename any service by typing over it.
+   - Untick **Bookable** to hide a service without deleting it. **×** removes it.
+3. Optionally set an extra charge for 3+ storey houses.
+4. **Working hours:** the calendar is open **Monday–Saturday** by default, and **closed on bank holidays** (worked out automatically every year). Untick any other days Roy never works, choose morning and/or afternoon, how many jobs fit in each, and how far ahead people can book. Click **Save**.
+5. Use the **Time off** tab for holidays. Those dates vanish from the booking calendar straight away.
 
 ## Step 5 – Emails (Resend)
 

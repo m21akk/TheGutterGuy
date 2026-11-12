@@ -191,17 +191,22 @@ console.log('Core flow ✓');
 {
   let r = await ST.PUT(req('/api/admin/settings', { method: 'PUT', body: {} })); assert.equal(r.status, 401);
   r = await ST.PUT(req('/api/admin/settings', { method: 'PUT', ...auth, body: {
-    prices: { gutters: { semi: '60', detached: 80 }, fascia: { semi: '45.50' }, repairs: { semi: '' } },
-    surcharge_3plus: 20, working_days: [1, 2, 3, 4, 5, 6], slots: { am: true, pm: true }, capacity_per_slot: 1, min_notice_days: 1, max_days_ahead: 30 } }));
+    services: [{ id: 'gutters', name: 'Gutters vacuumed / cleared', price: '60' }, { id: 'fascia', name: 'Fascia & gutter cleaning', price: '45.50' },
+      { id: 'repairs', name: 'Gutter repairs', price: '' }, { name: 'Soffit cleaning', price: 30 }, { name: 'Moss removal', price: 25, active: false }],
+    surcharge_3plus: 20, working_days: [0, 1, 2, 3, 4, 5, 6], slots: { am: true, pm: true }, capacity_per_slot: 1, min_notice_days: 1, max_days_ahead: 30 } }));
   assert.equal(r.status, 200);
   const saved = (await r.json()).settings;
-  assert.equal(saved.prices.gutters.semi, 6000); assert.equal(saved.prices.fascia.semi, 4550); assert.equal(saved.prices.repairs, undefined);
+  const sv = Object.fromEntries(saved.services.map((x) => [x.id, x]));
+  assert.equal(sv.gutters.price, 6000); assert.equal(sv.fascia.price, 4550); assert.equal(sv.repairs.price, null);
+  assert.equal(sv['soffit-cleaning'].price, 3000, 'new service added with an id');
   assert.equal(saved.surcharge_3plus, 2000);
 
   // public options
   r = await B.GET(req('/api/booking-options'));
   const opt = await r.json();
-  assert.equal(opt.prices.gutters.semi, 6000);
+  assert.equal(opt.services.find((x) => x.id === 'gutters').price, 6000);
+  assert.ok(opt.services.some((x) => x.id === 'soffit-cleaning'), 'new service offered');
+  assert.ok(!opt.services.some((x) => x.id === 'moss-removal'), 'switched-off service hidden');
   const days = Object.keys(opt.availability.days);
   assert.ok(days.length > 10);
   const day = days.find((d) => opt.availability.days[d].am);
@@ -220,6 +225,17 @@ console.log('Core flow ✓');
 
   const booking = { property_type: 'semi', storeys: '3+', services: ['gutters', 'fascia'], date: day, slot: 'am',
     name: 'Amy Test', email: 'amy@test.com', phone: '07700 900111', address: '1 High St', postcode: 'WS1 1AA' };
+  // default: open every day
+  {
+    const { DEFAULT_SETTINGS } = await import('../server/catalog.js');
+    assert.deepEqual(DEFAULT_SETTINGS.working_days, [1, 2, 3, 4, 5, 6], 'Mon–Sat');
+    const { bankHolidays } = await import('../server/bank-holidays.js');
+    assert.deepEqual([...bankHolidays(2026)].sort(), ['2026-01-01', '2026-04-03', '2026-04-06', '2026-05-04', '2026-05-25', '2026-08-31', '2026-12-25', '2026-12-28']);
+    assert.deepEqual([...bankHolidays(2027)].sort(), ['2027-01-01', '2027-03-26', '2027-03-29', '2027-05-03', '2027-05-31', '2027-08-30', '2027-12-27', '2027-12-28']);
+    assert.deepEqual([...bankHolidays(2028)].sort(), ['2028-01-03', '2028-04-14', '2028-04-17', '2028-05-01', '2028-05-29', '2028-08-28', '2028-12-25', '2028-12-26']);
+    const a = AV.computeAvailability({ working_days: [1, 2, 3, 4, 5, 6], closed_bank_holidays: true, slots: { am: true }, capacity_per_slot: 1, min_notice_days: 0, max_days_ahead: 60 }, [], [], new Date('2026-12-20T10:00:00Z'));
+    assert.ok(!a.days['2026-12-25'] && !a.days['2026-12-28'] && !a.days['2026-12-27'] && a.days['2026-12-29'], 'Christmas, Boxing Day substitute and Sunday closed');
+  }
   // price on request -> rejected for instant booking
   r = await B.POST(req('/api/book', { method: 'POST', body: { ...booking, services: ['repairs'] } }));
   assert.equal(r.status, 400);

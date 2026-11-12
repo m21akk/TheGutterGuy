@@ -3,7 +3,8 @@
 import { route, json, fail, readJson } from '../util.js';
 import { insertJob } from '../db.js';
 import { requestReceived, newRequestAlert } from '../email.js';
-import { SERVICES, PROPERTY_TYPES, QUOTE_ONLY_PROPERTY, STOREYS, SLOT_NAMES } from '../catalog.js';
+import { PROPERTY_TYPES, QUOTE_ONLY_PROPERTY, STOREYS, SLOT_NAMES } from '../catalog.js';
+import { loadSettings } from '../booking-data.js';
 import { customerFields, savePhotos } from './booking.js';
 
 const NOT_SURE = 'Not sure – please advise';
@@ -17,6 +18,7 @@ export const POST = route(async (request) => {
   if (err) return fail(err);
 
   // Accept ids (booking widget) or names.
+  const SERVICES = (await loadSettings()).services;
   const services = (Array.isArray(b.services) ? b.services : [])
     .map((v) => (v === 'unsure' || v === NOT_SURE ? NOT_SURE : SERVICES.find((s) => s.id === v || s.name === v)?.name))
     .filter(Boolean);
